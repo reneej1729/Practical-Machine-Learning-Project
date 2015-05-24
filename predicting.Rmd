@@ -1,0 +1,58 @@
+---
+title: "Predicting Weight Lifting Errors"
+author: "reneej1729"
+date: "May 23, 2015"
+output: html_document
+---
+
+## Introduction
+We were given data from http://groupware.les.inf.puc-rio.br/har about six partcipants who completed bicept curls in five ways. Class (A) was a bicept curl performed correctly, class (B) had an error of elbows extended to the front, class (C) error was lifting the dumbbell only halfway, class (D) error was lowering only halfway, and class (E) error had participants throw their hips to the front. Subjects wore a belt, arm band, and glove that each contained three sensors, a magnet, a gyroscope, and an accelerometer while completing the exercises. The dumbell used also had the same three sensors. The sensors all took information at a joint 45 Hz sampling rate. We have analyzed these data with a random forest model that can determine the class of a user's bicept curl with approximately 99% accuracy.
+
+## Preparing the Data
+Looking at the data, there were individual time point values and there were aggregate average window values. These can be determined by the new_window value, so after loading the data, we eliminated these values. Then, to help us estimate the out of sample error rate, we will randomly choose 20% of the data to be in a validation test.
+
+```{r, cache=TRUE, warning = FALSE}
+library(caret)
+training <- read.csv("pml-training.csv")
+cleaning <- training[training$new_window == "no",]
+set.seed(1729) # To make our results reproducable
+inTrain <- createDataPartition(y=cleaning$classe, p = 0.8, list = FALSE)
+newTrain <- cleaning[inTrain,]
+validation <- cleaning[-inTrain,]
+```
+
+## Analyzing the Data
+After exploring the data, it was found that many of the 160 variables of the data were empty. For our analysis, we decided to use the roll, pitch, yaw, acceleration (average and the three dimensions), and the magnet (average and the three dimensions) for each of the belt, arm band, glove, and dumbbell. We use a random forest model that by default includes cross validation by bootstrapping with 25 reps to create our model.
+
+```{r, cache=TRUE}
+library(caret)
+modFit <- train(classe ~ roll_belt + pitch_belt + yaw_belt + total_accel_belt + gyros_belt_x + 
+                     gyros_belt_y + gyros_belt_z + accel_belt_x + accel_belt_y + accel_belt_y + 
+                     accel_belt_z + magnet_belt_x + magnet_belt_y + magnet_belt_z + roll_arm + 
+                     pitch_arm + yaw_arm + total_accel_arm + gyros_arm_x + gyros_arm_y + 
+                     gyros_arm_z + accel_arm_x + accel_arm_y + accel_arm_z + magnet_arm_x + 
+                     magnet_arm_y + magnet_arm_z + roll_dumbbell + pitch_dumbbell + yaw_dumbbell + 
+                     total_accel_dumbbell + gyros_dumbbell_x + gyros_dumbbell_y + 
+                     gyros_dumbbell_z + accel_dumbbell_x + accel_dumbbell_y + accel_dumbbell_z + 
+                     magnet_dumbbell_x + magnet_dumbbell_y + magnet_dumbbell_z + roll_forearm + 
+                     pitch_forearm + yaw_forearm + total_accel_forearm + gyros_forearm_x + 
+                     gyros_forearm_y + gyros_forearm_z + accel_forearm_x + accel_forearm_y + 
+                     accel_forearm_z + magnet_forearm_x + magnet_forearm_y + magnet_forearm_z, 
+                method = "rf", data= newTrain)
+modFit$finalModel
+```
+
+Looking at this summary, our out of bag error rate is 0.6% and you can see that out of 19,622 data points, only 93 of them were not correctly identified. Even though OOB error should appoximate out of sample error, we can confirm this value by using our model on the validation set. 
+
+```{r, cache=TRUE, warning=FALSE}
+confusionMatrix(validation$classe, predict(modFit, validation))
+```
+This shows an accuracy of appoximately 99.5% and our OOB error falls within our 95% percent confidence interval of error.
+
+## Results
+By using a random forest model on the variables given, we have found that we can expect near a 99% accuracy rate for estimating new data collected through bicep curls. We can use our model to predict the values of the test case, which came out correctly in each of the uploads done on the course page.
+
+```{r, cache=TRUE, warning=FALSE}
+testing <- read.csv("pml-testing.csv")
+pred <- predict(modFit, testing)
+```
